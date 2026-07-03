@@ -1438,8 +1438,8 @@ function startGame() {
   if (introScreen) {
     introScreen.setAttribute('aria-hidden', 'true');
   }
-  showTutorial();
   gameLoop();
+  window.setTimeout(showTutorial, 850);
 }
 
 function showTutorial() {
