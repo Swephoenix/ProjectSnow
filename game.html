@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Story of Einar</title>
+<style>
+  :root {
+    --intro-ink: #05060d;
+    --intro-paper: #f2e4c6;
+    --intro-gold: #d8b15a;
+    --intro-gold-bright: #ffe2a3;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--intro-ink);
+    overflow: hidden;
+    user-select: none;
+  }
+  canvas {
+    display: block;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 700ms ease;
+  }
+  body.playing canvas {
+    opacity: 1;
+  }
+  .overlay {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 16px;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+    pointer-events: none; z-index: 10;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 700ms ease;
+  }
+  body.playing .overlay {
+    opacity: 1;
+    visibility: visible;
+  }
+  .overlay h1 {
+    font-family: 'Segoe UI', sans-serif; font-size: 1.1rem;
+    color: #ffd700; text-shadow: 0 0 10px rgba(255,215,0,0.3); letter-spacing: 2px;
+  }
+  .overlay .controls {
+    font-family: 'Segoe UI', sans-serif; font-size: 0.75rem; color: #aaa;
+  }
+  .overlay .controls kbd {
+    background: #333; border: 1px solid #555; border-radius: 3px;
+    padding: 1px 5px; font-size: 0.7rem; color: #fff;
+  }
+  #introScreen {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 50% 34%, rgba(255, 224, 164, 0.15), transparent 28%),
+      radial-gradient(circle at 50% 70%, rgba(112, 78, 30, 0.18), transparent 42%),
+      linear-gradient(180deg, #07080f 0%, #020308 100%);
+    transition: opacity 800ms ease;
+  }
+  #introScreen::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(115deg, rgba(255,255,255,0.04) 0 1px, transparent 1px 100%),
+      linear-gradient(25deg, rgba(255,255,255,0.035) 0 1px, transparent 1px 100%);
+    background-size: 12px 12px, 18px 18px;
+    opacity: 0.2;
+    mix-blend-mode: screen;
+    pointer-events: none;
+  }
+  .intro-copy {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 6vw;
+    text-align: center;
+    color: var(--intro-paper);
+    font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+    text-shadow: 0 8px 40px rgba(0,0,0,0.65);
+    gap: 0.25rem;
+  }
+  .intro-copy__eyebrow,
+  .intro-copy__title,
+  .intro-copy__subtitle,
+  .intro-copy__line {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+    filter: blur(10px);
+    will-change: transform, opacity, filter;
+  }
+  .intro-copy__eyebrow {
+    font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+    font-size: clamp(0.72rem, 1.2vw, 0.95rem);
+    letter-spacing: 0.45em;
+    text-transform: uppercase;
+    color: rgba(255, 232, 198, 0.82);
+  }
+  .intro-copy__title {
+    font-size: clamp(2rem, 4.2vw, 4.75rem);
+    letter-spacing: 0.08em;
+    line-height: 0.96;
+  }
+  .intro-copy__subtitle {
+    font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+    font-size: clamp(0.95rem, 1.8vw, 1.2rem);
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+    color: rgba(255, 232, 198, 0.72);
+  }
+  .intro-copy__line {
+    width: min(22rem, 48vw);
+    height: 1px;
+    margin: 0.4rem 0 0.15rem;
+    background: linear-gradient(90deg, transparent, rgba(255, 226, 169, 0.8), transparent);
+    transform: scaleX(0.2);
+    transform-origin: center;
+  }
+  .intro-stage {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transform: scale(1.02);
+    transition: opacity 1000ms ease, transform 1000ms ease;
+  }
+  body.intro-video .intro-stage {
+    opacity: 1;
+    transform: scale(1);
+  }
+  body.intro-video .intro-copy {
+    opacity: 0;
+    transition: opacity 600ms ease;
+  }
+  body.intro-copy-on .intro-copy__eyebrow {
+    animation: introTextRise 900ms cubic-bezier(0.2, 0.85, 0.2, 1) 180ms forwards;
+  }
+  body.intro-copy-on .intro-copy__title {
+    animation: introTextRise 1100ms cubic-bezier(0.18, 0.88, 0.2, 1) 360ms forwards;
+  }
+  body.intro-copy-on .intro-copy__line {
+    animation: introLineGrow 800ms cubic-bezier(0.22, 0.9, 0.24, 1) 720ms forwards;
+  }
+  body.intro-copy-on .intro-copy__subtitle {
+    animation: introTextRise 950ms cubic-bezier(0.2, 0.85, 0.2, 1) 840ms forwards;
+  }
+  #titleVideo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .intro-vignette {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 50% 38%, transparent 0 38%, rgba(0,0,0,0.56) 100%),
+      linear-gradient(180deg, rgba(0,0,0,0.24), rgba(0,0,0,0.42));
+    pointer-events: none;
+  }
+  #playButton {
+    position: absolute;
+    right: calc(5vw + 4cm);
+    top: 50%;
+    width: min(21vw, 22rem);
+    min-width: 220px;
+    min-height: 94px;
+    padding: 0;
+    border: 1px solid rgba(255, 242, 214, 0.5);
+    border-radius: 999px;
+    color: var(--intro-gold-bright);
+    background: transparent;
+    box-shadow:
+      0 20px 55px rgba(0,0,0,0.48),
+      inset 0 1px 0 rgba(255,255,255,0.11);
+    font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+    font-size: clamp(0.92rem, 1.5vw, 1.08rem);
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    opacity: 0;
+    transform: translateY(-50%) scale(0.85);
+    pointer-events: none;
+    overflow: hidden;
+    isolation: isolate;
+    will-change: transform, opacity;
+    transition: box-shadow 180ms ease, border-color 180ms ease;
+  }
+  #playButton:hover {
+    box-shadow:
+      0 22px 60px rgba(0,0,0,0.52),
+      inset 0 1px 0 rgba(255,255,255,0.14);
+    border-color: rgba(255, 247, 228, 0.72);
+  }
+  #playButton .playButton__snow {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+  }
+  #playButton .playButton__label {
+    position: relative;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    padding: 16px 28px;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.55);
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  #playButton .snowflake {
+    position: absolute;
+    top: -18%;
+    left: var(--x);
+    width: var(--size);
+    height: var(--size);
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 35% 35%, rgba(255,255,255,1), rgba(255,255,255,0.94) 56%, rgba(255,255,255,0.5) 72%, rgba(255,255,255,0.08) 100%);
+    filter: drop-shadow(0 0 6px rgba(255,255,255,0.45));
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.2);
+    animation: none;
+  }
+  body.show-play #playButton {
+    animation: playButtonSnowReveal 1800ms cubic-bezier(0.12, 0.85, 0.14, 1) forwards;
+    pointer-events: auto;
+  }
+  body.show-play #playButton .playButton__snow {
+    animation: snowLayerFill 1800ms cubic-bezier(0.12, 0.85, 0.14, 1) forwards;
+  }
+  body.show-play #playButton .playButton__label {
+    animation: playButtonLabelReveal 800ms ease 950ms forwards;
+  }
+  body.show-play #playButton .snowflake {
+    animation:
+      snowflakeFall var(--dur) linear var(--delay) forwards,
+      snowflakeDrift calc(var(--dur) * 0.7) ease-in-out var(--delay) forwards;
+  }
+  body.playing #introScreen {
+    opacity: 0;
+    pointer-events: none;
+  }
+  @keyframes introTextRise {
+    from {
+      opacity: 0;
+      transform: translateY(18px) scale(0.99);
+      filter: blur(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      filter: blur(0);
+    }
+  }
+  @keyframes introLineGrow {
+    from {
+      opacity: 0;
+      transform: scaleX(0.15);
+      filter: blur(4px);
+    }
+    to {
+      opacity: 1;
+      transform: scaleX(1);
+      filter: blur(0);
+    }
+  }
+  @keyframes playButtonSnowReveal {
+    0% {
+      opacity: 0;
+      transform: translateY(-50%) scale(0.78);
+      box-shadow:
+        0 0 0 rgba(0,0,0,0),
+        inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+    52% {
+      opacity: 1;
+      transform: translateY(-50%) scale(1.04);
+      box-shadow:
+        0 24px 64px rgba(0,0,0,0.5),
+        0 0 30px rgba(255, 255, 255, 0.18),
+        inset 0 1px 0 rgba(255,255,255,0.12);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(-50%) scale(1);
+      box-shadow:
+        0 20px 55px rgba(0,0,0,0.48),
+        0 0 18px rgba(255, 255, 255, 0.12),
+        inset 0 1px 0 rgba(255,255,255,0.1);
+    }
+  }
+  @keyframes snowLayerFill {
+    0% { opacity: 0; transform: scale(0.2); }
+    40% { opacity: 1; transform: scale(1); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  @keyframes playButtonLabelReveal {
+    0% { opacity: 0; transform: translateY(8px); letter-spacing: 0.22em; }
+    100% { opacity: 1; transform: translateY(0); letter-spacing: 0.16em; }
+  }
+  @keyframes snowflakeFall {
+    0% { opacity: 0; transform: translate3d(0, -18%, 0) scale(0.2); }
+    18% { opacity: 1; }
+    70% { opacity: 1; }
+    100% { opacity: 0; transform: translate3d(var(--drift), 118%, 0) scale(1.05); }
+  }
+  @keyframes snowflakeDrift {
+    0% { margin-left: 0; }
+    100% { margin-left: var(--drift); }
+  }
+</style>
+</head>
+<body>
+
+<div id="introScreen" aria-label="Intro sequence">
+  <div class="intro-copy">
+    <div class="intro-copy__eyebrow">A</div>
+    <div class="intro-copy__title">Brutus &amp; Caesar</div>
+    <div class="intro-copy__line"></div>
+    <div class="intro-copy__subtitle">productions</div>
+  </div>
+  <div class="intro-stage">
+    <video id="titleVideo" src="titlescreen.mp4" autoplay muted playsinline preload="auto"></video>
+    <div class="intro-vignette"></div>
+    <button id="playButton" type="button">
+      <span class="playButton__snow" aria-hidden="true"></span>
+      <span class="playButton__label">Play the game</span>
+    </button>
+  </div>
+</div>
+
+<div class="overlay">
+  <h1>THE STORY OF EINAR</h1>
+  <div class="controls">
+    <kbd>klicka</kbd> visa väg &nbsp;&middot;&nbsp;
+    <kbd>dubbelklicka</kbd> gå &nbsp;&middot;&nbsp;
+    <kbd>esc</kbd> avbryt &nbsp;&middot;&nbsp;
+    <kbd>scroll</kbd> zooma
+  </div>
+</div>
+
+<canvas id="game"></canvas>
+
+<script src="water_mask_data.js"></script>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const introScreen = document.getElementById('introScreen');
+const titleVideo = document.getElementById('titleVideo');
+const playButton = document.getElementById('playButton');
+const TITLE_VIDEO_END = 9;
+const TITLE_VIDEO_RATE = 0.52;
+let titleVideoStarted = false;
+let introCopyStarted = false;
+let playButtonSnowBuilt = false;
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+const WALK_SPEED = 2.5;
+const EINAR_HEIGHT = 80;
+const MAX_MOVEMENT = 500;
+const PATH_DOT_SPACING = 30;
+const NPC_COUNT = 8;
+const NPC_SIZE = 140;
+const NPC_MAX_MOVEMENT = 300;
+const NPC_WALK_SPEED = 3;
+const BOUNCE_FORCE = 8;
+const NPC_DETECTION_RANGE = 360;
+const NPC_CHASE_SPEED_MULT = 1.25;
+
+let mapImg = null;
+let americansImg = null;
+let missilImg = null;
+let runningRight = [];
+let runningLeft = [];
+let standingRight = null;
+let standingLeft = null;
+let npcShootFrames = [];
+let mapW = 0, mapH = 0;
+
+let movementLeft = MAX_MOVEMENT;
+let plannedDest = null;
+let plannedDist = 0;
+let pathDots = [];
+let activeDest = null;
+let lastClickTime = 0;
+const DOUBLE_CLICK_MS = 350;
+let endRoundBtn = { x: 0, y: 0, w: 90, h: 24 };
+
+let turnPhase = 'player';
+let currentNpcIndex = 0;
+let npcAnimFrame = 0;
+let npcAnimTimer = 0;
+const NPC_ANIM_SPEED = 6;
+let turnBanner = '';
+let turnBannerTimer = 0;
+
+const npcs = [];
+const missiles = [];
+const MISSILE_SPEED = 3;
+const MISSILE_ROUNDS = 3;
+const MISSILE_SPAWN_INTERVAL = 150;
+let missileSpawnTimer = 0;
+let missilePings = [];
+
+let shakeAmount = 0;
+let shakeDuration = 0;
+let missileWarningTimer = 0;
+let roundCount = 0;
+let missileFirstSpawn = true;
+let assetsReady = false;
+let introReady = false;
+let gameStarted = false;
+
+function loadImage(src) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+async function loadAssets() {
+  mapImg = await loadImage('sverigekarta.png');
+  americansImg = await loadImage('americans.png');
+  missilImg = await loadImage('missil.png');
+  if (mapImg) {
+    mapW = mapImg.width;
+    mapH = mapImg.height;
+  }
+
+  standingRight = await loadImage('einar1_standing%20still.png');
+  standingLeft = standingRight;
+
+  const promises = [];
+  for (let i = 1; i <= 31; i++) {
+    const num = String(i).padStart(3, '0');
+    promises.push(loadImage('einar%20running/frame_' + num + '.png'));
+  }
+  const frames = await Promise.all(promises);
+  runningRight = frames.filter(f => f !== null);
+  runningLeft = runningRight;
+
+  const shootPromises = [];
+  for (let i = 1; i <= 21; i++) {
+    const num = String(i).padStart(3, '0');
+    shootPromises.push(loadImage('make_them_stand_still_and_fire_frames/rembg_output/frame_' + num + '.png'));
+  }
+  const shootFrames = await Promise.all(shootPromises);
+  npcShootFrames = shootFrames.filter(f => f !== null);
+
+  for (let i = 0; i < NPC_COUNT; i++) {
+    let x, y;
+    let attempts = 0;
+    do {
+      x = 300 + Math.random() * (mapW - 600);
+      y = 300 + Math.random() * (mapH - 600);
+      attempts++;
+    } while (isWaterRadius(x, y, 20) && attempts < 100);
+    npcs.push({
+      x, y,
+      destX: 0, destY: 0,
+      moving: false,
+      movementLeft: NPC_MAX_MOVEMENT,
+      facingRight: Math.random() > 0.5,
+      shooting: false,
+      shootFrame: 0,
+      shootTimer: 0,
+      shootDone: false,
+      revealed: false,
+      alerted: false,
+    });
+  }
+}
+
+const player = {
+  x: 0, y: 0,
+  facingRight: true,
+  animFrame: 0, animTimer: 0, animSpeed: 4, moving: false,
+  hp: 100, maxHp: 100,
+  hitFlash: 0,
+};
+
+const camera = { x: 0, y: 0, zoom: 1.3 };
+const keys = {};
+
+canvas.addEventListener('click', (e) => {
+  if (turnPhase !== 'player' || player.moving) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  if (mx >= endRoundBtn.x && mx <= endRoundBtn.x + endRoundBtn.w &&
+      my >= endRoundBtn.y && my <= endRoundBtn.y + endRoundBtn.h) {
+    startNpcTurns();
+    return;
+  }
+
+  const wmx = mx / camera.zoom + camera.x;
+  const wmy = my / camera.zoom + camera.y;
+
+  const now = Date.now();
+  const isDoubleClick = (now - lastClickTime) < DOUBLE_CLICK_MS;
+  lastClickTime = now;
+
+  if (isDoubleClick && plannedDest) {
+    activeDest = { x: plannedDest.x, y: plannedDest.y };
+    plannedDest = null;
+    return;
+  }
+
+  const dist = Math.hypot(wmx - player.x, wmy - player.y);
+  if (dist < 5 || movementLeft <= 0) return;
+
+  const actualDist = Math.min(dist, movementLeft);
+  const nx = (wmx - player.x) / dist;
+  const ny = (wmy - player.y) / dist;
+  plannedDest = { x: player.x + nx * actualDist, y: player.y + ny * actualDist };
+  plannedDist = actualDist;
+  generatePath(player.x, player.y, plannedDest.x, plannedDest.y, actualDist);
+});
+
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? -0.05 : 0.05;
+  camera.zoom = Math.max(0.15, Math.min(1.5, camera.zoom + delta));
+}, { passive: false });
+
+document.addEventListener('keydown', (e) => {
+  keys[e.key] = true;
+  if (['+','=','-'].includes(e.key)) e.preventDefault();
+  if (e.key === 'Escape' && turnPhase === 'player') {
+    activeDest = null;
+    clearPlanning();
+  }
+});
+document.addEventListener('keyup', (e) => { keys[e.key] = false; });
+
+function generatePath(x1, y1, x2, y2, maxDist) {
+  pathDots = [];
+  const dist = Math.hypot(x2 - x1, y2 - y1);
+  const steps = Math.max(1, Math.floor(dist / PATH_DOT_SPACING));
+  for (let i = 1; i <= steps; i++) {
+    const t = i / (steps + 1);
+    const px = x1 + (x2 - x1) * t;
+    const py = y1 + (y2 - y1) * t;
+    const d = Math.hypot(px - x1, py - y1);
+    const reachable = d <= movementLeft;
+    pathDots.push({ x: px, y: py, reachable });
+  }
+}
+
+function clearPlanning() {
+  plannedDest = null;
+  plannedDist = 0;
+  pathDots = [];
+}
+
+function npcCanSeePlayer(npc) {
+  const dx = player.x - npc.x;
+  const dy = player.y - npc.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist > NPC_DETECTION_RANGE) return false;
+
+  const steps = Math.max(8, Math.ceil(dist / 18));
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    const x = npc.x + dx * t;
+    const y = npc.y + dy * t;
+    if (isWaterRadius(x, y, 10)) return false;
+  }
+  return true;
+}
+
+function setNpcChaseTarget(npc) {
+  npc.alerted = true;
+  npc.destX = player.x;
+  npc.destY = player.y;
+  npc.moving = true;
+  npc.movementLeft = Math.max(npc.movementLeft, NPC_MAX_MOVEMENT);
+}
+
+function isWater(x, y) {
+  if (!WMD) return false;
+  const mx = Math.floor(x / 16);
+  const my = Math.floor(y / 16);
+  if (mx < 0 || mx >= WMW || my < 0 || my >= WMH) return true;
+  return WMD.charCodeAt(my * WMW + mx) === 1;
+}
+
+function isWaterRadius(x, y, radius) {
+  for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 4) {
+    if (isWater(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius)) return true;
+  }
+  return isWater(x, y);
+}
+
+function showBanner(text) {
+  turnBanner = text;
+  turnBannerTimer = 90;
+}
+
+function startNpcTurns() {
+  turnPhase = 'npc';
+  currentNpcIndex = 0;
+  activeDest = null;
+  clearPlanning();
+  showBanner('Fiendens runda');
+  startNextNpc();
+}
+
+function startNextNpc() {
+  while (currentNpcIndex < npcs.length) {
+    const npc = npcs[currentNpcIndex];
+    npc.revealed = true;
+    npc.movementLeft = NPC_MAX_MOVEMENT;
+    npc.shooting = false;
+    npc.shootFrame = 0;
+    npc.shootTimer = 0;
+    npc.shootDone = false;
+    npc.alerted = false;
+    let destX, destY;
+    let attempts = 0;
+    do {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 100 + Math.random() * 200;
+      destX = Math.max(50, Math.min(mapW - 50, npc.x + Math.cos(angle) * dist));
+      destY = Math.max(50, Math.min(mapH - 50, npc.y + Math.sin(angle) * dist));
+      attempts++;
+    } while (isWaterRadius(destX, destY, 15) && attempts < 50);
+    npc.destX = destX;
+    npc.destY = destY;
+    npc.moving = true;
+    return;
+  }
+  endNpcTurns();
+}
+
+function endNpcTurns() {
+  turnPhase = 'player';
+  movementLeft = MAX_MOVEMENT;
+  currentNpcIndex = 0;
+  showBanner('Din runda');
+  roundCount++;
+}
+
+function update() {
+  if (keys['+'] || keys['=']) camera.zoom = Math.min(1.5, camera.zoom + 0.01);
+  if (keys['-']) camera.zoom = Math.max(0.15, camera.zoom - 0.01);
+
+  if (turnBannerTimer > 0) turnBannerTimer--;
+
+  if (turnPhase === 'player') {
+    updatePlayer();
+  } else {
+    updateNpcTurn();
+  }
+
+  player.x = Math.max(0, Math.min(mapW, player.x));
+  player.y = Math.max(0, Math.min(mapH, player.y));
+
+  if (player.moving) {
+    player.animTimer++;
+    if (player.animTimer >= player.animSpeed) {
+      player.animTimer = 0;
+      player.animFrame = (player.animFrame + 1) % runningRight.length;
+    }
+  } else {
+    player.animFrame = 0;
+    player.animTimer = 0;
+  }
+
+  if (player.hitFlash > 0) player.hitFlash--;
+
+  if (turnPhase === 'npc' && currentNpcIndex < npcs.length) {
+    const npc = npcs[currentNpcIndex];
+    camera.x = npc.x - canvas.width / (2 * camera.zoom);
+    camera.y = npc.y - canvas.height / (2 * camera.zoom);
+  } else {
+    camera.x = player.x - canvas.width / (2 * camera.zoom);
+    camera.y = player.y - canvas.height / (2 * camera.zoom);
+  }
+  camera.x = Math.max(0, Math.min(mapW - canvas.width / camera.zoom, camera.x));
+  camera.y = Math.max(0, Math.min(mapH - canvas.height / camera.zoom, camera.y));
+
+  if (shakeDuration > 0) {
+    shakeDuration--;
+    shakeAmount *= 0.92;
+  }
+
+  if (missileWarningTimer > 0) missileWarningTimer--;
+
+  updateMissiles();
+}
+
+function updatePlayer() {
+  player.moving = false;
+
+  if (activeDest) {
+    const dx = activeDest.x - player.x;
+    const dy = activeDest.y - player.y;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist > 3) {
+      const step = Math.min(WALK_SPEED, dist);
+      const nx = dx / dist;
+      const ny = dy / dist;
+      const newX = player.x + nx * step;
+      const newY = player.y + ny * step;
+
+      if (isWaterRadius(newX, newY - EINAR_HEIGHT / 2, 10)) {
+        activeDest = null;
+        clearPlanning();
+        return;
+      }
+
+      player.x = newX;
+      player.y = newY;
+      player.facingRight = nx > 0;
+      player.moving = true;
+      movementLeft -= step;
+
+      if (movementLeft <= 0) {
+        movementLeft = 0;
+        activeDest = null;
+        clearPlanning();
+      }
+    } else {
+      movementLeft = Math.max(0, movementLeft - dist);
+      activeDest = null;
+      clearPlanning();
+    }
+  }
+}
+
+function updateNpcTurn() {
+  if (currentNpcIndex >= npcs.length) return;
+
+  const npc = npcs[currentNpcIndex];
+
+  if (npc.shooting) {
+    npc.shootTimer++;
+    if (npc.shootTimer >= 4) {
+      npc.shootTimer = 0;
+      npc.shootFrame++;
+      if (npc.shootFrame >= npcShootFrames.length) {
+        npc.shootDone = true;
+        npc.shooting = false;
+        npc.shootFrame = npcShootFrames.length - 1;
+        if (player.hitFlash <= 0) {
+          player.hp = Math.max(0, player.hp - 15);
+          player.hitFlash = 30;
+        }
+        npc.moving = false;
+        currentNpcIndex++;
+        setTimeout(startNextNpc, 600);
+      }
+    }
+    return;
+  }
+
+  if (!npc.moving) return;
+
+  if (npcCanSeePlayer(npc)) {
+    setNpcChaseTarget(npc);
+  }
+
+  const dx = npc.destX - npc.x;
+  const dy = npc.destY - npc.y;
+  const dist = Math.hypot(dx, dy);
+
+  const pdx = player.x - npc.x;
+  const pdy = player.y - npc.y;
+  const pdist = Math.hypot(pdx, pdy);
+  const collisionDist = (NPC_SIZE + EINAR_HEIGHT) / 2 * 0.7;
+
+  if (pdist < collisionDist) {
+    npc.shooting = true;
+    npc.shootFrame = 0;
+    npc.shootTimer = 0;
+    npc.facingRight = pdx > 0;
+    return;
+  }
+
+  if (dist > 3 && npc.movementLeft > 0) {
+    const speed = npc.alerted ? NPC_WALK_SPEED * NPC_CHASE_SPEED_MULT : NPC_WALK_SPEED;
+    const step = Math.min(speed, dist, npc.movementLeft);
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const newX = npc.x + nx * step;
+    const newY = npc.y + ny * step;
+
+    if (isWaterRadius(newX, newY, 15)) {
+      npc.moving = false;
+      currentNpcIndex++;
+      setTimeout(startNextNpc, 300);
+      return;
+    }
+
+    npc.x = newX;
+    npc.y = newY;
+    npc.facingRight = nx > 0;
+    npc.movementLeft -= step;
+  } else {
+    if (npc.alerted && npcCanSeePlayer(npc)) {
+      setNpcChaseTarget(npc);
+      return;
+    }
+    npc.moving = false;
+    currentNpcIndex++;
+    setTimeout(startNextNpc, 300);
+  }
+}
+
+function spawnMissile() {
+  const side = Math.floor(Math.random() * 4);
+  let x, y, tx, ty;
+  const margin = 50;
+  const dist = 200 + Math.random() * 300;
+  switch (side) {
+    case 0:
+      x = Math.random() * mapW; y = -margin;
+      tx = x + (Math.random() - 0.5) * dist; ty = y + dist;
+      break;
+    case 1:
+      x = Math.random() * mapW; y = mapH + margin;
+      tx = x + (Math.random() - 0.5) * dist; ty = y - dist;
+      break;
+    case 2:
+      x = -margin; y = Math.random() * mapH;
+      tx = x + dist; ty = y + (Math.random() - 0.5) * dist;
+      break;
+    case 3:
+      x = mapW + margin; y = Math.random() * mapH;
+      tx = x - dist; ty = y + (Math.random() - 0.5) * dist;
+      break;
+  }
+  const dx = tx - x, dy = ty - y;
+  const len = Math.hypot(dx, dy);
+  missiles.push({
+    x, y,
+    vx: dx / len * MISSILE_SPEED,
+    vy: dy / len * MISSILE_SPEED,
+    roundsLeft: MISSILE_ROUNDS,
+    age: 0,
+  });
+  const ex = Math.max(0, Math.min(mapW, x));
+  const ey = Math.max(0, Math.min(mapH, y));
+  missilePings.push({ x: ex, y: ey, timer: 40 });
+}
+
+function spawnMissilesForRound() {
+  const count = 1 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < count; i++) spawnMissile();
+  missileWarningTimer = 100;
+}
+
+function updateMissiles() {
+  if (roundCount > 2) {
+    missileSpawnTimer++;
+    if (missileSpawnTimer >= MISSILE_SPAWN_INTERVAL) {
+      missileSpawnTimer = 0;
+      spawnMissile();
+      if (missileFirstSpawn) {
+        missileFirstSpawn = false;
+        missileWarningTimer = 100;
+      }
+    }
+  }
+
+  for (let i = missiles.length - 1; i >= 0; i--) {
+    const m = missiles[i];
+    m.age++;
+    if (m.roundsLeft <= 0) {
+      shakeAmount = 20; shakeDuration = 40;
+      missiles.splice(i, 1);
+      continue;
+    }
+    if (m.y < mapH - 30) {
+      m.vy += 0.008;
+      m.vx *= 0.999;
+    }
+    const len = Math.hypot(m.vx, m.vy);
+    if (len > 0) { m.vx = m.vx / len * MISSILE_SPEED; m.vy = m.vy / len * MISSILE_SPEED; }
+    m.x += m.vx;
+    m.y += m.vy;
+  }
+  for (let i = missilePings.length - 1; i >= 0; i--) {
+    missilePings[i].timer--;
+    if (missilePings[i].timer <= 0) missilePings.splice(i, 1);
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  ctx.save();
+  const shakeX = shakeDuration > 0 ? (Math.random() - 0.5) * shakeAmount : 0;
+  const shakeY = shakeDuration > 0 ? (Math.random() - 0.5) * shakeAmount : 0;
+  ctx.scale(camera.zoom, camera.zoom);
+  ctx.translate(-camera.x + shakeX, -camera.y + shakeY);
+
+  if (mapImg) {
+    ctx.drawImage(mapImg, 0, 0, mapW, mapH);
+  } else {
+    ctx.fillStyle = '#1a3a0a';
+    ctx.fillRect(0, 0, mapW, mapH);
+  }
+
+  if (missilImg) {
+    for (const m of missiles) {
+      const angle = Math.atan2(m.vy, m.vx);
+      const s = 0.12;
+      const w = missilImg.width * s;
+      const h = missilImg.height * s;
+
+      ctx.save();
+      ctx.translate(m.x, m.y);
+      ctx.rotate(angle);
+      ctx.drawImage(missilImg, -w / 2, -h / 2, w, h);
+      ctx.restore();
+    }
+  }
+
+  if (turnPhase === 'player') {
+    for (const dot of pathDots) {
+      ctx.fillStyle = dot.reachable ? 'rgba(0,200,0,0.7)' : 'rgba(200,0,0,0.7)';
+      ctx.beginPath();
+      ctx.arc(dot.x, dot.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const showDest = activeDest || plannedDest;
+    if (showDest) {
+      const sx = showDest.x;
+      const sy = showDest.y;
+      const xs = 10;
+
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(sx - xs, sy - xs); ctx.lineTo(sx + xs, sy + xs);
+      ctx.moveTo(sx + xs, sy - xs); ctx.lineTo(sx - xs, sy + xs);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(sx - xs, sy - xs); ctx.lineTo(sx + xs, sy + xs);
+      ctx.moveTo(sx + xs, sy - xs); ctx.lineTo(sx - xs, sy + xs);
+      ctx.stroke();
+
+      const turns = Math.ceil(plannedDist / MAX_MOVEMENT);
+      const label = turns <= 1 ? Math.floor(plannedDist) + ' steg' : turns + ' dagar';
+      const midIdx = Math.floor(pathDots.length / 2);
+      const labelDot = pathDots[midIdx] || { x: sx, y: sy };
+
+      ctx.font = 'bold 14px sans-serif';
+      ctx.textAlign = 'center';
+      const textW = ctx.measureText(label).width;
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(labelDot.x - textW / 2 - 4, labelDot.y - 22, textW + 8, 18);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(label, labelDot.x, labelDot.y - 8);
+      ctx.textAlign = 'left';
+    }
+  }
+
+  if (turnPhase === 'npc' && currentNpcIndex < npcs.length) {
+    const activeNpc = npcs[currentNpcIndex];
+    ctx.strokeStyle = 'rgba(255,0,0,0.5)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(activeNpc.x, activeNpc.y - NPC_SIZE / 2, NPC_SIZE / 2 + 8, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  let sprite = null;
+  if (player.moving) {
+    sprite = player.facingRight ? runningRight[player.animFrame] : runningLeft[player.animFrame];
+  } else {
+    sprite = player.facingRight ? standingRight : standingLeft;
+  }
+
+  if (sprite) {
+    const scale = EINAR_HEIGHT / sprite.height;
+    const w = sprite.width * scale;
+    const h = EINAR_HEIGHT;
+    const drawX = player.x - w / 2;
+    const drawY = player.y - h;
+
+    if (player.hitFlash > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.5 + Math.sin(player.hitFlash * 0.5) * 0.5;
+    }
+
+    if (!player.facingRight && player.moving) {
+      ctx.save();
+      ctx.translate(drawX + w, drawY);
+      ctx.scale(-1, 1);
+      ctx.drawImage(sprite, 0, 0, w, h);
+      ctx.restore();
+    } else {
+      ctx.drawImage(sprite, drawX, drawY, w, h);
+    }
+
+    if (player.hitFlash > 0) {
+      ctx.restore();
+    }
+  }
+
+  if (americansImg) {
+    for (const npc of npcs) {
+      if (!npc.revealed) continue;
+      let useImg = null;
+      let isShooting = npc.shooting && npcShootFrames.length > 0;
+      if (isShooting) {
+        useImg = npcShootFrames[Math.min(npc.shootFrame, npcShootFrames.length - 1)];
+      } else {
+        useImg = americansImg;
+      }
+
+      const scale = NPC_SIZE / useImg.height;
+      const w = useImg.width * scale;
+      const h = NPC_SIZE;
+      const drawX = npc.x - w / 2;
+      const drawY = npc.y - h;
+
+      const shouldMirror = isShooting ? npc.facingRight : !npc.facingRight;
+      if (shouldMirror) {
+        ctx.save();
+        ctx.translate(drawX + w, drawY);
+        ctx.scale(-1, 1);
+        ctx.drawImage(useImg, 0, 0, w, h);
+        ctx.restore();
+      } else {
+        ctx.drawImage(useImg, drawX, drawY, w, h);
+      }
+    }
+  }
+
+  ctx.restore();
+
+  drawMinimap();
+  drawHUD();
+  drawBanner();
+  drawMissileWarning();
+}
+
+function drawMissileWarning() {
+  if (missileWarningTimer <= 0) return;
+  const pulse = Math.sin(Date.now() * 0.008) * 0.3 + 0.7;
+  const alpha = missileWarningTimer > 80 ? 1 : missileWarningTimer / 80;
+  ctx.save();
+  ctx.globalAlpha = alpha * pulse;
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(0, canvas.height / 2 - 40, canvas.width, 80);
+  ctx.globalAlpha = alpha * pulse;
+  ctx.fillStyle = '#ff4444';
+  ctx.font = 'bold 28px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#ff0000';
+  ctx.shadowBlur = 20;
+  ctx.fillText('VARNING: Missil upptäckt', canvas.width / 2, canvas.height / 2 + 10);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+function drawMinimap() {
+  const MINIMAP_W = 160;
+  const MINIMAP_H = MINIMAP_W * (mapH / mapW);
+  const MX = canvas.width - MINIMAP_W - 15;
+  const MY = 15;
+
+  ctx.save();
+  ctx.globalAlpha = 0.85;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(MX - 3, MY - 3, MINIMAP_W + 6, MINIMAP_H + 6);
+  ctx.globalAlpha = 1;
+
+  if (mapImg) ctx.drawImage(mapImg, MX, MY, MINIMAP_W, MINIMAP_H);
+
+  const viewW = (canvas.width / camera.zoom) / mapW * MINIMAP_W;
+  const viewH = (canvas.height / camera.zoom) / mapH * MINIMAP_H;
+  const viewX = MX + (camera.x / mapW) * MINIMAP_W;
+  const viewY = MY + (camera.y / mapH) * MINIMAP_H;
+
+  ctx.strokeStyle = '#ff0';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(viewX, viewY, viewW, viewH);
+
+  if (turnPhase === 'player') {
+    const showMinimapDest = activeDest || plannedDest;
+    if (showMinimapDest) {
+      const dMX = MX + (showMinimapDest.x / mapW) * MINIMAP_W;
+      const dMY = MY + (showMinimapDest.y / mapH) * MINIMAP_H;
+      ctx.fillStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(dMX - 4, dMY - 4); ctx.lineTo(dMX + 4, dMY + 4);
+      ctx.moveTo(dMX + 4, dMY - 4); ctx.lineTo(dMX - 4, dMY + 4);
+      ctx.stroke();
+    }
+  }
+
+  const dotX = MX + (player.x / mapW) * MINIMAP_W;
+  const dotY = MY + (player.y / mapH) * MINIMAP_H;
+  ctx.fillStyle = '#0f0';
+  ctx.beginPath();
+  ctx.arc(dotX, dotY, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  for (const npc of npcs) {
+    if (!npc.revealed) continue;
+    const nMX = MX + (npc.x / mapW) * MINIMAP_W;
+    const nMY = MY + (npc.y / mapH) * MINIMAP_H;
+    ctx.fillStyle = '#fa0';
+    ctx.beginPath();
+    ctx.arc(nMX, nMY, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const pulse = Math.sin(Date.now() * 0.006) * 0.3 + 0.7;
+  for (const m of missiles) {
+    const mMX = MX + (m.x / mapW) * MINIMAP_W;
+    const mMY = MY + (m.y / mapH) * MINIMAP_H;
+    ctx.fillStyle = `rgba(255, 0, 0, ${pulse * 0.6})`;
+    ctx.beginPath();
+    ctx.arc(mMX, mMY, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = `rgba(255, 50, 0, ${pulse * 0.9})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(mMX, mMY, 7, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  for (const ping of missilePings) {
+    const pMX = MX + (ping.x / mapW) * MINIMAP_W;
+    const pMY = MY + (ping.y / mapH) * MINIMAP_H;
+    const r = (1 - ping.timer / 40) * 20 + 2;
+    ctx.strokeStyle = `rgba(255, 100, 100, ${ping.timer / 40})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(pMX, pMY, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawHUD() {
+  const bx = 15;
+  const barW = 220;
+  const barH = 16;
+  const by = canvas.height - 35;
+
+  ctx.fillStyle = '#000a';
+  ctx.fillRect(bx - 2, by - 2, barW + 4, barH + 4);
+
+  ctx.fillStyle = '#333';
+  ctx.fillRect(bx, by, barW, barH);
+
+  const pct = movementLeft / MAX_MOVEMENT;
+  const color = pct > 0.5 ? '#4a4' : pct > 0.2 ? '#aa4' : '#a44';
+  ctx.fillStyle = color;
+  ctx.fillRect(bx, by, barW * pct, barH);
+
+  ctx.strokeStyle = '#666';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(bx, by, barW, barH);
+
+  ctx.fillStyle = '#fff';
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(Math.floor(movementLeft) + ' / ' + MAX_MOVEMENT, bx + barW / 2, by + 12);
+  ctx.textAlign = 'left';
+
+  const hpBarW = 120;
+  const hpH = 12;
+  const hpX = bx;
+  const hpY = by - 20;
+
+  ctx.fillStyle = '#000a';
+  ctx.fillRect(hpX - 1, hpY - 1, hpBarW + 2, hpH + 2);
+
+  ctx.fillStyle = '#4a2';
+  ctx.fillRect(hpX, hpY, hpBarW, hpH);
+
+  const hpPct = player.hp / player.maxHp;
+  const hpColor = hpPct > 0.5 ? '#4a4' : hpPct > 0.25 ? '#aa4' : '#a44';
+  ctx.fillStyle = hpColor;
+  ctx.fillRect(hpX, hpY, hpBarW * hpPct, hpH);
+
+  ctx.strokeStyle = '#666';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(hpX, hpY, hpBarW, hpH);
+
+  ctx.fillStyle = '#fff';
+  ctx.font = '9px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(player.hp + '/' + player.maxHp, hpX + hpBarW / 2, hpY + 10);
+  ctx.textAlign = 'left';
+
+  const btnX = bx + barW + 15;
+  const btnY = by - 4;
+  endRoundBtn.x = btnX;
+  endRoundBtn.y = btnY;
+
+  const isActive = turnPhase === 'player';
+  ctx.fillStyle = isActive ? '#555' : '#333';
+  ctx.fillRect(btnX, btnY, endRoundBtn.w, endRoundBtn.h);
+  ctx.strokeStyle = isActive ? '#888' : '#555';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(btnX, btnY, endRoundBtn.w, endRoundBtn.h);
+
+  ctx.fillStyle = isActive ? '#fff' : '#888';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Avsluta runda', btnX + endRoundBtn.w / 2, btnY + 16);
+  ctx.textAlign = 'left';
+
+  if (turnPhase === 'npc') {
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(bx, by - 30, 200, 22);
+    ctx.fillStyle = '#f44';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText('Fiende ' + (currentNpcIndex + 1) + '/' + npcs.length + ' rör sig...', bx + 5, by - 14);
+  }
+}
+
+function drawBanner() {
+  if (turnBannerTimer <= 0) return;
+
+  const alpha = turnBannerTimer > 70 ? 1 : turnBannerTimer / 70;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.8)';
+  ctx.fillRect(0, canvas.height / 2 - 30, canvas.width, 60);
+
+  ctx.fillStyle = '#ffd700';
+  ctx.font = 'bold 24px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(turnBanner, canvas.width / 2, canvas.height / 2 + 8);
+  ctx.textAlign = 'left';
+
+  ctx.restore();
+}
+
+function initializeGameState() {
+  if (mapImg) {
+    let sx = mapW / 2;
+    let sy = mapH / 2;
+    let attempts = 0;
+    while (isWaterRadius(sx, sy, 20) && attempts < 100) {
+      sx = 300 + Math.random() * (mapW - 600);
+      sy = 300 + Math.random() * (mapH - 600);
+      attempts++;
+    }
+    player.x = sx;
+    player.y = sy;
+  }
+  showBanner('Din runda');
+  roundCount = 1;
+}
+
+function updateIntroControls() {
+  if (introReady && assetsReady) {
+    document.body.classList.add('show-play');
+    buildPlayButtonSnow();
+  } else {
+    document.body.classList.remove('show-play');
+  }
+}
+
+function startGame() {
+  if (!assetsReady || gameStarted) return;
+  gameStarted = true;
+  document.body.classList.add('playing');
+  if (introScreen) {
+    introScreen.setAttribute('aria-hidden', 'true');
+  }
+  gameLoop();
+}
+
+function configureTitleVideo() {
+  if (!titleVideo) return;
+  titleVideo.autoplay = true;
+  titleVideo.muted = true;
+  titleVideo.defaultMuted = true;
+  titleVideo.playsInline = true;
+  titleVideo.volume = 0;
+  titleVideo.playbackRate = TITLE_VIDEO_RATE;
+  if (titleVideo.currentTime > TITLE_VIDEO_END) {
+    titleVideo.currentTime = 0;
+  }
+}
+
+function startTitleVideo() {
+  if (!titleVideo || titleVideoStarted) return;
+  titleVideoStarted = true;
+  configureTitleVideo();
+  titleVideo.play().catch(() => {
+    titleVideoStarted = false;
+  });
+}
+
+function startIntroCopy() {
+  if (introCopyStarted) return;
+  introCopyStarted = true;
+  document.body.classList.add('intro-copy-on');
+}
+
+function buildPlayButtonSnow() {
+  if (playButtonSnowBuilt || !playButton) return;
+  const snowLayer = playButton.querySelector('.playButton__snow');
+  if (!snowLayer) return;
+  playButtonSnowBuilt = true;
+  snowLayer.innerHTML = '';
+  const snowCount = 28;
+  for (let i = 0; i < snowCount; i++) {
+    const flake = document.createElement('span');
+    const size = 6 + Math.random() * 11;
+    const drift = -18 + Math.random() * 36;
+    const delay = Math.random() * 880;
+    const dur = 1200 + Math.random() * 900;
+    flake.className = 'snowflake';
+    flake.style.setProperty('--x', `${Math.random() * 100}%`);
+    flake.style.setProperty('--size', `${size}px`);
+    flake.style.setProperty('--drift', `${drift}px`);
+    flake.style.setProperty('--delay', `${delay}ms`);
+    flake.style.setProperty('--dur', `${dur}ms`);
+    snowLayer.appendChild(flake);
+  }
+}
+
+function gameLoop() {
+  update();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+playButton.addEventListener('click', startGame);
+
+startIntroCopy();
+
+setTimeout(() => {
+  document.body.classList.add('intro-video');
+}, 2200);
+
+setTimeout(() => {
+  introReady = true;
+  updateIntroControls();
+}, 9000);
+
+loadAssets().then(() => {
+  initializeGameState();
+  assetsReady = true;
+  updateIntroControls();
+  startTitleVideo();
+});
+
+window.addEventListener('DOMContentLoaded', startTitleVideo);
+titleVideo.addEventListener('loadedmetadata', startTitleVideo);
+titleVideo.addEventListener('canplay', () => {
+  startTitleVideo();
+});
+titleVideo.addEventListener('timeupdate', () => {
+  if (titleVideo.currentTime >= TITLE_VIDEO_END) {
+    titleVideo.pause();
+    titleVideo.currentTime = TITLE_VIDEO_END;
+  }
+});
+</script>
+</body>
+</html>
